@@ -1,0 +1,104 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model Store {
+  id              Int      @id @default(1)
+  url             String   @unique
+  consumerKey     String
+  consumerSecret  String
+  webhookSecret   String?
+  lastSyncedAt    DateTime @default(now())
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model Order {
+  id                    Int      @id
+  number                String
+  status                String
+  date_created          DateTime
+  date_modified         DateTime @default(now())
+  payment_method_title  String?
+  transaction_id        String?
+  customer_ip_address   String?
+  currency_symbol       String
+  total                 String
+  total_tax             String
+  discount_total        String
+  shipping_total        String
+  customer_note         String?
+  
+  // Stored as stringified JSON since SQLite doesn't natively support JSON type in Prisma
+  billing               String
+  shipping              String
+  line_items            String
+  fee_lines             String   @default("[]")
+
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+}
+
+model Customer {
+  id                    Int      @id
+  email                 String   
+  first_name            String
+  last_name             String
+  role                  String?
+  username              String?
+  
+  billing               String
+  shipping              String
+  
+  is_paying_customer    Boolean  @default(false)
+  orders_count          Int      @default(0)
+  total_spent           String   @default("0")
+  
+  date_created          DateTime
+  date_modified         DateTime @default(now())
+  
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+}
+
+model Product {
+  id                    Int      @id
+  name                  String
+  slug                  String
+  permalink             String
+  type                  String
+  status                String
+  featured              Boolean  @default(false)
+  catalog_visibility    String
+  description           String
+  short_description     String
+  sku                   String
+  price                 String
+  regular_price         String
+  sale_price            String
+  
+  manage_stock          Boolean  @default(false)
+  stock_quantity        Int?
+  stock_status          String
+  
+  categories            String   // Stored as JSON string
+  images                String   // Stored as JSON string
+  attributes            String   // Stored as JSON string
+  
+  date_created          DateTime
+  date_modified         DateTime @default(now())
+  
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+}
