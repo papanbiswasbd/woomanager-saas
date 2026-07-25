@@ -70,6 +70,8 @@ model Order {
   @@index([status])
   @@index([date_created])
   @@index([date_modified])
+  @@index([userId, status, date_created])
+  @@index([userId, date_created])
 }
 
 model Customer {
@@ -99,6 +101,7 @@ model Customer {
   @@index([userId])
   @@index([date_created])
   @@index([date_modified])
+  @@index([userId, date_created])
 }
 
 model Product {
@@ -138,4 +141,6 @@ model Product {
   @@index([status])
   @@index([date_created])
   @@index([date_modified])
+  @@index([userId, status, date_created])
+  @@index([userId, date_created])
 }

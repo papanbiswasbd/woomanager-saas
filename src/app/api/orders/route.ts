@@ -39,14 +39,23 @@ export async function GET(request: Request) {
       where.status = status;
     }
 
-    const orders = await db.order.findMany({
-      where,
-      orderBy: { date_created: 'desc' },
-      skip: (page - 1) * perPage,
-      take: perPage,
-    });
+    // Execute queries in PARALLEL in a single network round-trip to PostgreSQL
+    const [orders, totalCount, statusCountsData] = await Promise.all([
+      db.order.findMany({
+        where,
+        orderBy: { date_created: 'desc' },
+        skip: (page - 1) * perPage,
+        take: perPage,
+      }),
+      db.order.count({ where }),
+      db.order.groupBy({
+        by: ['status'],
+        where: baseWhere,
+        _count: { id: true }
+      })
+    ]);
 
-    // Parse the JSON strings back into objects before returning to the frontend
+    // Parse JSON strings back into objects
     const parsedOrders = orders.map(order => ({
       ...order,
       billing: JSON.parse(order.billing || '{}'),
@@ -56,57 +65,47 @@ export async function GET(request: Request) {
       date_created: order.date_created.toISOString(),
     }));
 
-    // Collect all unique product IDs from all line items to fetch their images
+    // Collect product IDs from line items to fetch images
     const productIds = Array.from(new Set(parsedOrders.flatMap((o: any) => o.line_items.map((i: any) => i.product_id)).filter(Boolean)));
     
-    // Fetch all relevant products from DB
-    const products = await db.product.findMany({
-      where: { id: { in: productIds as number[] } },
-      select: { id: true, images: true }
-    });
-
-    // Create a map of productId -> first image src
-    const imageMap = new Map();
-    products.forEach((p: any) => {
-      try {
-        const images = JSON.parse(p.images || '[]');
-        if (images.length > 0 && images[0].src) {
-          imageMap.set(p.id, images[0].src);
-        }
-      } catch (e) {}
-    });
-
-    // Inject the image src into the line items
-    parsedOrders.forEach((o: any) => {
-      o.line_items.forEach((item: any) => {
-        if (typeof item.image === 'string') {
-          item.image = { src: item.image };
-        }
-        if (!item.image) item.image = {};
-        
-        const dbSrc = imageMap.get(item.product_id);
-        if (dbSrc && !item.image.src) {
-          item.image.src = dbSrc;
-        }
+    if (productIds.length > 0) {
+      const products = await db.product.findMany({
+        where: { id: { in: productIds as number[] } },
+        select: { id: true, images: true }
       });
-    });
 
-    const totalCount = await db.order.count({ where });
+      const imageMap = new Map();
+      products.forEach((p: any) => {
+        try {
+          const images = JSON.parse(p.images || '[]');
+          if (images.length > 0 && images[0].src) {
+            imageMap.set(p.id, images[0].src);
+          }
+        } catch (e) {}
+      });
+
+      parsedOrders.forEach((o: any) => {
+        o.line_items.forEach((item: any) => {
+          if (typeof item.image === 'string') {
+            item.image = { src: item.image };
+          }
+          if (!item.image) item.image = {};
+          
+          const dbSrc = imageMap.get(item.product_id);
+          if (dbSrc && !item.image.src) {
+            item.image.src = dbSrc;
+          }
+        });
+      });
+    }
+
     const totalPages = Math.ceil(totalCount / perPage);
 
-    // Compute counts for each status based on the current search and date filters
-    const statusCountsData = await db.order.groupBy({
-      by: ['status'],
-      where: baseWhere,
-      _count: { id: true }
-    });
-    
     const statusCounts = statusCountsData.reduce((acc, curr) => {
       acc[curr.status] = curr._count.id;
       return acc;
     }, {} as Record<string, number>);
     
-    // Add 'any' total count
     statusCounts['any'] = Object.values(statusCounts).reduce((a, b) => a + b, 0);
 
     return NextResponse.json({ orders: parsedOrders, totalCount, totalPages, statusCounts });
