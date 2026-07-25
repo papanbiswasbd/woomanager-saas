@@ -40,6 +40,14 @@ function SettingsContent() {
             consumerSecret: data.consumerSecret || ''
           });
           setStoreUrlInput(data.url);
+        } else {
+          settings.setSettings({
+            storeUrl: '',
+            consumerKey: '',
+            consumerSecret: '',
+            webhooksRegistered: false
+          });
+          setStoreUrlInput('');
         }
         setMounted(true);
       })

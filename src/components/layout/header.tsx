@@ -6,6 +6,7 @@ import { useIsFetching } from '@tanstack/react-query';
 import { SyncOrdersButton } from '@/components/sync-orders-button';
 import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { useSettingsStore } from '@/lib/store';
 
 export default function Header() {
   const isFetching = useIsFetching();
@@ -31,6 +32,12 @@ export default function Header() {
   const handleLogout = async () => {
     try {
       await fetch('/api/auth/logout', { method: 'POST' });
+      useSettingsStore.getState().setSettings({
+        storeUrl: '',
+        consumerKey: '',
+        consumerSecret: '',
+        webhooksRegistered: false,
+      });
       setUser(null);
       router.push('/login');
       router.refresh();

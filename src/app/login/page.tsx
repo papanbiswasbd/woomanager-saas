@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ShoppingBag, Lock, Mail, ArrowRight, Loader2, AlertCircle } from 'lucide-react';
+import { useSettingsStore } from '@/lib/store';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -29,6 +30,14 @@ export default function LoginPage() {
       if (!res.ok) {
         throw new Error(data.message || 'Failed to log in');
       }
+
+      // Reset local settings store so fresh user fetches their own store settings
+      useSettingsStore.getState().setSettings({
+        storeUrl: '',
+        consumerKey: '',
+        consumerSecret: '',
+        webhooksRegistered: false,
+      });
 
       router.push('/');
       router.refresh();

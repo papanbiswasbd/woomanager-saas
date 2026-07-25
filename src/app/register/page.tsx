@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ShoppingBag, Lock, Mail, User, ArrowRight, Loader2, AlertCircle } from 'lucide-react';
+import { useSettingsStore } from '@/lib/store';
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -30,6 +31,14 @@ export default function RegisterPage() {
       if (!res.ok) {
         throw new Error(data.message || 'Failed to register');
       }
+
+      // Reset local settings store so fresh account starts clean
+      useSettingsStore.getState().setSettings({
+        storeUrl: '',
+        consumerKey: '',
+        consumerSecret: '',
+        webhooksRegistered: false,
+      });
 
       router.push('/settings');
       router.refresh();

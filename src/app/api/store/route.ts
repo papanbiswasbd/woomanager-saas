@@ -6,10 +6,10 @@ export async function GET() {
   try {
     const user = await getAuthUser();
     
-    // Fallback search for store by userId if logged in, or first store
-    const store = user 
+    // Strict user isolation: Search ONLY for store by authenticated userId
+    const store = user?.id 
       ? await db.store.findFirst({ where: { userId: user.id } })
-      : await db.store.findFirst();
+      : null;
 
     if (!store) {
       return NextResponse.json({ url: '', consumerKey: '', consumerSecret: '' });
@@ -32,7 +32,7 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { url, consumerKey, consumerSecret } = body;
 
-    const existingStore = user ? await db.store.findFirst({ where: { userId: user.id } }) : null;
+    const existingStore = user?.id ? await db.store.findFirst({ where: { userId: user.id } }) : null;
 
     let store;
     if (existingStore) {
