@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { getAuthUser } from '@/lib/auth';
 import crypto from 'crypto';
 
 const TOPICS = [
@@ -10,23 +11,28 @@ const TOPICS = [
 
 export async function POST(request: Request) {
   try {
-    const { baseUrl, storeUrl, consumerKey, consumerSecret } = await request.json(); // e.g. https://your-ngrok.app
+    const user = await getAuthUser();
+    const { baseUrl, storeUrl, consumerKey, consumerSecret } = await request.json();
 
     if (!baseUrl) {
       return NextResponse.json({ message: 'Base URL is required to register webhooks.' }, { status: 400 });
     }
 
-    // Auto-heal the DB if keys are sent from frontend
-    if (storeUrl && consumerKey && consumerSecret) {
-      await db.store.upsert({
-        where: { id: 1 },
-        update: { url: storeUrl, consumerKey, consumerSecret },
-        create: { id: 1, url: storeUrl, consumerKey, consumerSecret }
+    let store = user?.id 
+      ? await db.store.findFirst({ where: { userId: user.id } })
+      : await db.store.findFirst();
+
+    if (!store && storeUrl && consumerKey && consumerSecret) {
+      store = await db.store.create({
+        data: {
+          url: storeUrl,
+          consumerKey,
+          consumerSecret,
+          userId: user?.id || null
+        }
       });
     }
 
-    const store = await db.store.findUnique({ where: { id: 1 } });
-    
     if (!store || !store.url || !store.consumerKey || !store.consumerSecret) {
       return NextResponse.json({ message: 'Store credentials not configured.' }, { status: 400 });
     }
@@ -36,7 +42,7 @@ export async function POST(request: Request) {
     if (!webhookSecret) {
       webhookSecret = crypto.randomBytes(32).toString('hex');
       await db.store.update({
-        where: { id: 1 },
+        where: { id: store.id },
         data: { webhookSecret }
       });
     }
@@ -51,7 +57,7 @@ export async function POST(request: Request) {
     // Register all topics
     for (const topic of TOPICS) {
       const payload = {
-        name: `SaaS Sync: ${topic}`,
+        name: `WooManager SaaS: ${topic}`,
         topic: topic,
         delivery_url: deliveryUrl,
         secret: webhookSecret,
@@ -84,10 +90,10 @@ export async function POST(request: Request) {
       }, { status: 207 });
     }
 
-    return NextResponse.json({ success: true, message: 'All webhooks registered successfully!' });
+    return NextResponse.json({ success: true, message: 'All real-time webhooks registered successfully!' });
 
   } catch (error: any) {
     console.error("Webhook Registration Error:", error);
-    return NextResponse.json({ message: 'Internal Server Error' }, { status: 500 });
+    return NextResponse.json({ message: error.message || 'Internal Server Error' }, { status: 500 });
   }
 }
