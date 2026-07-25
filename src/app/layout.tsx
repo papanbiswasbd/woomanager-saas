@@ -5,6 +5,7 @@ import Sidebar from "@/components/layout/sidebar";
 import Header from "@/components/layout/header";
 import { GlobalSync } from "@/components/global-sync";
 import { AutoSync } from "@/components/auto-sync";
+import { RealtimeListener } from "@/components/realtime-listener";
 
 export const metadata: Metadata = {
   title: "WooCommerce Order Manager",
@@ -25,6 +26,7 @@ export default function RootLayout({
         <QueryProvider>
           <GlobalSync />
           <AutoSync />
+          <RealtimeListener />
           <Sidebar />
           <div className="flex-1 flex flex-col h-full overflow-hidden">
             <Header />

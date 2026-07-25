@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { realtimeEmitter } from '@/lib/event-emitter';
 import crypto from 'crypto';
 
 export async function POST(request: Request) {
@@ -161,6 +162,9 @@ export async function POST(request: Request) {
         await db.customer.delete({ where: { id: data.id } }).catch(() => {});
       }
     }
+
+    // Emit real-time update event to connected browser tabs
+    realtimeEmitter.emit('change', { resource, event, userId });
 
     return NextResponse.json({ success: true });
   } catch (error: any) {
