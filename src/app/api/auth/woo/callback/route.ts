@@ -23,22 +23,29 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: 'Missing required parameters' }, { status: 400 });
     }
 
-    // Save directly to the single-tenant Store DB
-    // We assume the frontend passed the URL earlier, but we just update the keys here.
-    // If the URL is missing, the frontend will update it via /api/store after callback.
-    await db.store.upsert({
-      where: { id: 1 },
-      update: {
-        consumerKey: consumer_key,
-        consumerSecret: consumer_secret
-      },
-      create: {
-        id: 1,
-        url: '', // Frontend will PATCH this or it was saved before auth redirect
-        consumerKey: consumer_key,
-        consumerSecret: consumer_secret
-      }
+    // Search for existing store by user_id or create new store associated with user_id
+    const existingStore = await db.store.findFirst({
+      where: { userId: user_id }
     });
+
+    if (existingStore) {
+      await db.store.update({
+        where: { id: existingStore.id },
+        data: {
+          consumerKey: consumer_key,
+          consumerSecret: consumer_secret
+        }
+      });
+    } else {
+      await db.store.create({
+        data: {
+          userId: user_id,
+          url: '',
+          consumerKey: consumer_key,
+          consumerSecret: consumer_secret
+        }
+      });
+    }
 
     return NextResponse.json({ success: true });
   } catch (error: any) {

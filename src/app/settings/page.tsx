@@ -136,9 +136,18 @@ function SettingsContent() {
 
       window.localStorage.setItem('tempStoreUrl', cleanUrl);
 
+      let currentUserId = '';
+      try {
+        const meRes = await fetch('/api/auth/me');
+        const meData = await meRes.json();
+        if (meData.user?.id) {
+          currentUserId = meData.user.id;
+        }
+      } catch (e) {}
+
       const appName = encodeURIComponent("WooOrder Management SaaS");
       const scope = "read_write";
-      const userId = Math.random().toString(36).substring(7); // Random unique ID
+      const userId = currentUserId || Math.random().toString(36).substring(7);
       const returnUrl = encodeURIComponent(`${window.location.origin}/settings`);
       const callbackUrl = encodeURIComponent(`${window.location.origin}/api/auth/woo/callback`);
 
