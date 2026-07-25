@@ -21,7 +21,8 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  if (!token && !pathname.startsWith('/_next') && !pathname.includes('.')) {
+  // If user is not logged in and tries to access any page, redirect immediately to /login
+  if (!token) {
     return NextResponse.redirect(new URL('/login', request.url));
   }
 
@@ -30,12 +31,13 @@ export function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    '/',
-    '/orders',
-    '/products',
-    '/customers',
-    '/settings',
-    '/login',
-    '/register',
+    /*
+     * Match all request paths except for:
+     * - _next/static (static files)
+     * - _next/image (image optimization files)
+     * - favicon.ico (favicon file)
+     * - public files (.png, .jpg, .svg, etc.)
+     */
+    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 };
