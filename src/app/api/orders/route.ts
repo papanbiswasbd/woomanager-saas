@@ -6,8 +6,8 @@ export async function GET(request: Request) {
   try {
     const user = await getAuthUser();
     const { searchParams } = new URL(request.url);
-    const page = parseInt(searchParams.get('page') || '1');
-    const perPage = parseInt(searchParams.get('per_page') || '50');
+    const page = Math.max(1, parseInt(searchParams.get('page') || '1'));
+    const perPage = Math.min(100, Math.max(10, parseInt(searchParams.get('per_page') || '50')));
     const status = searchParams.get('status') || 'any';
     const search = searchParams.get('search') || '';
     const from = searchParams.get('from');
@@ -27,10 +27,10 @@ export async function GET(request: Request) {
 
     if (search) {
       baseWhere.OR = [
-        { number: { contains: search } },
-        { billing: { contains: search } },
-        { shipping: { contains: search } },
-        { line_items: { contains: search } }
+        { number: { contains: search, mode: 'insensitive' } },
+        { billing: { contains: search, mode: 'insensitive' } },
+        { shipping: { contains: search, mode: 'insensitive' } },
+        { line_items: { contains: search, mode: 'insensitive' } }
       ];
     }
 
@@ -39,65 +39,79 @@ export async function GET(request: Request) {
       where.status = status;
     }
 
-    // Execute queries in PARALLEL in a single network round-trip to PostgreSQL
-    const [orders, totalCount, statusCountsData] = await Promise.all([
+    // Single parallel Promise.all to PostgreSQL for zero sequential round-trips
+    const [orders, totalCount, statusCountsData, products] = await Promise.all([
       db.order.findMany({
         where,
         orderBy: { date_created: 'desc' },
         skip: (page - 1) * perPage,
         take: perPage,
+        select: {
+          id: true,
+          number: true,
+          status: true,
+          date_created: true,
+          payment_method_title: true,
+          transaction_id: true,
+          currency_symbol: true,
+          total: true,
+          billing: true,
+          shipping: true,
+          line_items: true,
+          fee_lines: true,
+        }
       }),
       db.order.count({ where }),
       db.order.groupBy({
         by: ['status'],
         where: baseWhere,
         _count: { id: true }
+      }),
+      db.product.findMany({
+        where: baseWhere,
+        select: { id: true, images: true }
       })
     ]);
 
-    // Parse JSON strings back into objects
-    const parsedOrders = orders.map(order => ({
-      ...order,
-      billing: JSON.parse(order.billing || '{}'),
-      shipping: JSON.parse(order.shipping || '{}'),
-      line_items: JSON.parse(order.line_items || '[]'),
-      fee_lines: JSON.parse(order.fee_lines || '[]'),
-      date_created: order.date_created.toISOString(),
-    }));
+    // Build product image map in memory (0ms)
+    const imageMap = new Map<number, string>();
+    products.forEach((p: any) => {
+      try {
+        const images = JSON.parse(p.images || '[]');
+        if (images.length > 0 && images[0]?.src) {
+          imageMap.set(p.id, images[0].src);
+        }
+      } catch (e) {}
+    });
 
-    // Collect product IDs from line items to fetch images
-    const productIds = Array.from(new Set(parsedOrders.flatMap((o: any) => o.line_items.map((i: any) => i.product_id)).filter(Boolean)));
-    
-    if (productIds.length > 0) {
-      const products = await db.product.findMany({
-        where: { id: { in: productIds as number[] } },
-        select: { id: true, images: true }
+    // Parse JSON fields
+    const parsedOrders = orders.map(order => {
+      let lineItems: any[] = [];
+      try {
+        lineItems = JSON.parse(order.line_items || '[]');
+      } catch (e) {}
+
+      lineItems.forEach((item: any) => {
+        if (typeof item.image === 'string') {
+          item.image = { src: item.image };
+        }
+        if (!item.image) item.image = {};
+        
+        const dbSrc = imageMap.get(item.product_id);
+        if (dbSrc && !item.image.src) {
+          item.image.src = dbSrc;
+        }
       });
 
-      const imageMap = new Map();
-      products.forEach((p: any) => {
-        try {
-          const images = JSON.parse(p.images || '[]');
-          if (images.length > 0 && images[0].src) {
-            imageMap.set(p.id, images[0].src);
-          }
-        } catch (e) {}
-      });
-
-      parsedOrders.forEach((o: any) => {
-        o.line_items.forEach((item: any) => {
-          if (typeof item.image === 'string') {
-            item.image = { src: item.image };
-          }
-          if (!item.image) item.image = {};
-          
-          const dbSrc = imageMap.get(item.product_id);
-          if (dbSrc && !item.image.src) {
-            item.image.src = dbSrc;
-          }
-        });
-      });
-    }
+      return {
+        ...order,
+        billing: JSON.parse(order.billing || '{}'),
+        shipping: JSON.parse(order.shipping || '{}'),
+        line_items: lineItems,
+        fee_lines: JSON.parse(order.fee_lines || '[]'),
+        date_created: order.date_created.toISOString(),
+      };
+    });
 
     const totalPages = Math.ceil(totalCount / perPage);
 
