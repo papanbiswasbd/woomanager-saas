@@ -1,14 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db as prisma } from '@/lib/db';
+import { getAuthUser } from '@/lib/auth';
 import { subDays, format, isAfter, startOfDay, differenceInDays, addDays } from 'date-fns';
 
 export async function GET(request: NextRequest) {
   try {
+    const user = await getAuthUser();
     const searchParams = request.nextUrl.searchParams;
     const from = searchParams.get('from');
     const to = searchParams.get('to');
 
     const where: any = {};
+    if (user) {
+      where.userId = user.id;
+    }
+
     if (from && to) {
       where.date_created = {
         gte: new Date(from),
@@ -27,7 +33,9 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    const totalCustomers = await prisma.customer.count();
+    const customerWhere: any = {};
+    if (user) customerWhere.userId = user.id;
+    const totalCustomers = await prisma.customer.count({ where: customerWhere });
 
     // 1. Key Metrics
     const totalOrders = allOrders.length;
@@ -75,7 +83,11 @@ export async function GET(request: NextRequest) {
     const revenueOverTime = Object.values(dailyData);
 
     // 4. Recent Orders
+    const recentWhere: any = {};
+    if (user) recentWhere.userId = user.id;
+
     const recentOrders = await prisma.order.findMany({
+      where: recentWhere,
       take: 5,
       orderBy: { date_created: 'desc' },
       select: {

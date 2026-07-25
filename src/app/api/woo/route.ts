@@ -1,8 +1,10 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { getAuthUser } from '@/lib/auth';
 
 export async function POST(request: Request) {
   try {
+    const user = await getAuthUser();
     const body = await request.json();
     const { endpoint, method, data, url, consumerKey, consumerSecret, apiNamespace } = body;
 
@@ -64,6 +66,7 @@ export async function POST(request: Request) {
                 shipping: JSON.stringify(order.shipping),
                 line_items: JSON.stringify(order.line_items),
                 fee_lines: JSON.stringify(order.fee_lines || []),
+                userId: user?.id || null,
               }
             }).catch(e => console.error("Failed to sync individual batch order", order.id, e));
           });
@@ -95,6 +98,7 @@ export async function POST(request: Request) {
             shipping: JSON.stringify(order.shipping || {}),
             line_items: JSON.stringify(order.line_items || []),
             fee_lines: JSON.stringify(order.fee_lines || []),
+            userId: user?.id || null,
           };
 
           await db.order.upsert({

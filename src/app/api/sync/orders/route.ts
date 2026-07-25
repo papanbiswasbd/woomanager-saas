@@ -1,8 +1,11 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { getAuthUser } from '@/lib/auth';
 
 export async function POST(request: Request) {
   try {
+    const user = await getAuthUser();
+    const store = user ? await db.store.findFirst({ where: { userId: user.id } }) : await db.store.findFirst();
     const body = await request.json();
     const { url, consumerKey, consumerSecret, page = 1 } = body;
 
@@ -65,6 +68,7 @@ export async function POST(request: Request) {
             shipping: JSON.stringify(order.shipping),
             line_items: JSON.stringify(order.line_items),
             fee_lines: JSON.stringify(order.fee_lines || []),
+            userId: user?.id || null,
           },
           create: {
             id: order.id,
@@ -85,6 +89,7 @@ export async function POST(request: Request) {
             shipping: JSON.stringify(order.shipping),
             line_items: JSON.stringify(order.line_items),
             fee_lines: JSON.stringify(order.fee_lines || []),
+            userId: user?.id || null,
           }
         })
       )

@@ -1,8 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
-
 generator client {
   provider = "prisma-client"
   output   = "../src/generated/prisma"
@@ -12,16 +7,36 @@ datasource db {
   provider = "postgresql"
 }
 
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  name      String
+  
+  stores    Store[]
+  orders    Order[]
+  customers Customer[]
+  products  Product[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
 model Store {
-  id              Int      @id @default(1)
-  url             String   @unique
+  id              Int      @id @default(autoincrement())
+  url             String
   consumerKey     String
   consumerSecret  String
   webhookSecret   String?
   lastSyncedAt    DateTime @default(now())
   
+  userId          String?
+  user            User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+
+  @@index([userId])
 }
 
 model Order {
@@ -40,15 +55,18 @@ model Order {
   shipping_total        String
   customer_note         String?
   
-  // Stored as stringified JSON since SQLite doesn't natively support JSON type in Prisma
   billing               String
   shipping              String
   line_items            String
   fee_lines             String   @default("[]")
 
+  userId                String?
+  user                  User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
 
+  @@index([userId])
   @@index([status])
   @@index([date_created])
   @@index([date_modified])
@@ -72,9 +90,13 @@ model Customer {
   date_created          DateTime
   date_modified         DateTime @default(now())
   
+  userId                String?
+  user                  User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
 
+  @@index([userId])
   @@index([date_created])
   @@index([date_modified])
 }
@@ -99,16 +121,20 @@ model Product {
   stock_quantity        Int?
   stock_status          String
   
-  categories            String   // Stored as JSON string
-  images                String   // Stored as JSON string
-  attributes            String   // Stored as JSON string
+  categories            String
+  images                String
+  attributes            String
   
   date_created          DateTime
   date_modified         DateTime @default(now())
   
+  userId                String?
+  user                  User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
 
+  @@index([userId])
   @@index([status])
   @@index([date_created])
   @@index([date_modified])

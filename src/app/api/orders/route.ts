@@ -1,8 +1,10 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { getAuthUser } from '@/lib/auth';
 
 export async function GET(request: Request) {
   try {
+    const user = await getAuthUser();
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get('page') || '1');
     const perPage = parseInt(searchParams.get('per_page') || '50');
@@ -12,6 +14,9 @@ export async function GET(request: Request) {
     const to = searchParams.get('to');
 
     const baseWhere: any = {};
+    if (user) {
+      baseWhere.userId = user.id;
+    }
     
     if (from && to) {
       baseWhere.date_created = {

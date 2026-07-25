@@ -1,11 +1,15 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { getAuthUser } from '@/lib/auth';
 
 export async function GET() {
   try {
-    const store = await db.store.findUnique({
-      where: { id: 1 }
-    });
+    const user = await getAuthUser();
+    
+    // Fallback search for store by userId if logged in, or first store
+    const store = user 
+      ? await db.store.findFirst({ where: { userId: user.id } })
+      : await db.store.findFirst();
 
     if (!store) {
       return NextResponse.json({ url: '', consumerKey: '', consumerSecret: '' });
@@ -24,23 +28,32 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
+    const user = await getAuthUser();
     const body = await request.json();
     const { url, consumerKey, consumerSecret } = body;
 
-    const store = await db.store.upsert({
-      where: { id: 1 },
-      update: {
-        url: url || '',
-        consumerKey: consumerKey || '',
-        consumerSecret: consumerSecret || '',
-      },
-      create: {
-        id: 1,
-        url: url || '',
-        consumerKey: consumerKey || '',
-        consumerSecret: consumerSecret || '',
-      }
-    });
+    const existingStore = user ? await db.store.findFirst({ where: { userId: user.id } }) : null;
+
+    let store;
+    if (existingStore) {
+      store = await db.store.update({
+        where: { id: existingStore.id },
+        data: {
+          url: url || '',
+          consumerKey: consumerKey || '',
+          consumerSecret: consumerSecret || '',
+        }
+      });
+    } else {
+      store = await db.store.create({
+        data: {
+          url: url || '',
+          consumerKey: consumerKey || '',
+          consumerSecret: consumerSecret || '',
+          userId: user?.id || null
+        }
+      });
+    }
 
     return NextResponse.json({ success: true, store });
   } catch (error: any) {

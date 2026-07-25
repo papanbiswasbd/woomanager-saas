@@ -1,8 +1,10 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { getAuthUser } from '@/lib/auth';
 
 export async function POST(request: Request) {
   try {
+    const user = await getAuthUser();
     const body = await request.json();
     const { url, consumerKey, consumerSecret, page = 1 } = body;
 
@@ -15,6 +17,7 @@ export async function POST(request: Request) {
 
     // Delta Sync: Check for the latest modified product
     const latestProduct = await db.product.findFirst({
+      where: user ? { userId: user.id } : {},
       orderBy: { date_modified: 'desc' }
     });
 
@@ -65,6 +68,7 @@ export async function POST(request: Request) {
           attributes: JSON.stringify(product.attributes),
           date_created: new Date(product.date_created),
           date_modified: product.date_modified ? new Date(product.date_modified) : new Date(),
+          userId: user?.id || null,
         };
 
         return db.product.upsert({

@@ -1,21 +1,28 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { getAuthUser } from '@/lib/auth';
 
 export async function GET(request: Request) {
   try {
+    const user = await getAuthUser();
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get('page') || '1');
     const perPage = parseInt(searchParams.get('per_page') || '50');
 
     const skip = (page - 1) * perPage;
+    const where: any = {};
+    if (user) {
+      where.userId = user.id;
+    }
 
     const [customers, totalCount] = await Promise.all([
       db.customer.findMany({
+        where,
         orderBy: { date_created: 'desc' },
         skip,
         take: perPage,
       }),
-      db.customer.count()
+      db.customer.count({ where })
     ]);
 
     const parsedCustomers = customers.map(customer => ({

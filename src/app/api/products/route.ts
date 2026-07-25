@@ -1,13 +1,21 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { getAuthUser } from '@/lib/auth';
 
 export async function GET(request: Request) {
   try {
+    const user = await getAuthUser();
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get('page') || '1');
     const perPage = parseInt(searchParams.get('per_page') || '50');
 
+    const where: any = {};
+    if (user) {
+      where.userId = user.id;
+    }
+
     const products = await db.product.findMany({
+      where,
       orderBy: { date_created: 'desc' },
       skip: (page - 1) * perPage,
       take: perPage,
@@ -21,7 +29,7 @@ export async function GET(request: Request) {
       date_created: product.date_created.toISOString(),
     }));
 
-    const totalCount = await db.product.count();
+    const totalCount = await db.product.count({ where });
     const totalPages = Math.ceil(totalCount / perPage);
 
     return NextResponse.json({ products: parsedProducts, totalCount, totalPages });
