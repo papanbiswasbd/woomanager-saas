@@ -10,7 +10,9 @@ import {
 } from '@/components/ui/sheet';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
-import { MapPin, User, Mail, Phone, CreditCard, Package, Calendar, MoreHorizontal, Copy, Edit2, Loader2, Check, X } from 'lucide-react';
+import { MapPin, User, Mail, Phone, CreditCard, Package, Calendar, MoreHorizontal, Copy, Edit2, Loader2, Check, X, Printer, Tag, MessageSquare, ExternalLink } from 'lucide-react';
+import { printOrderInvoice } from '@/lib/print-invoice';
+import { printOrderLabel } from '@/lib/print-label';
 
 interface OrderDetailsDrawerProps {
   order: any | null;
@@ -18,7 +20,17 @@ interface OrderDetailsDrawerProps {
   onClose: () => void;
 }
 
-export function OrderDetailsDrawer({ order, isOpen, onClose }: OrderDetailsDrawerProps) {
+export function OrderDetailsDrawer({ order: incomingOrder, isOpen, onClose }: OrderDetailsDrawerProps) {
+  const [activeOrder, setActiveOrder] = useState<any>(null);
+
+  useEffect(() => {
+    if (incomingOrder) {
+      setActiveOrder(incomingOrder);
+    }
+  }, [incomingOrder]);
+
+  const order = incomingOrder || activeOrder;
+
   const [isEditingBilling, setIsEditingBilling] = useState(false);
   const [isEditingShipping, setIsEditingShipping] = useState(false);
   
@@ -39,12 +51,13 @@ export function OrderDetailsDrawer({ order, isOpen, onClose }: OrderDetailsDrawe
 
   const updateOrderMutation = useMutation({
     mutationFn: async (updateData: any) => {
+      if (!order) throw new Error('No active order');
       const response = await fetch('/api/woo', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           endpoint: `orders/${order.id}`,
-          method: 'POST',
+          method: 'PUT',
           data: updateData,
           url: storeUrl,
           consumerKey,
@@ -54,12 +67,51 @@ export function OrderDetailsDrawer({ order, isOpen, onClose }: OrderDetailsDrawe
       
       const data = await response.json();
       if (!response.ok) {
-        throw new Error(data.message || 'Error updating order via proxy');
+        let errorMsg = data.message || 'Error updating order via proxy';
+        if (data.details?.params) {
+          errorMsg += '\nDetails: ' + JSON.stringify(data.details.params);
+        }
+        throw new Error(errorMsg);
       }
       return data;
     },
+    onMutate: async (updateData: any) => {
+      if (!order) return;
+      await queryClient.cancelQueries({ queryKey: ['orders'] });
+      const previousData = queryClient.getQueriesData({ queryKey: ['orders'] });
+
+      queryClient.setQueriesData({ queryKey: ['orders'] }, (old: any) => {
+        if (!old || !old.orders) return old;
+        return {
+          ...old,
+          orders: old.orders.map((o: any) => {
+            if (o.id === order.id) {
+              const updatedOrder = { ...o, ...updateData };
+              if (updateData.line_items) {
+                updatedOrder.line_items = o.line_items.map((item: any) => {
+                  const updateItem = updateData.line_items.find((i: any) => i.id === item.id);
+                  return updateItem ? { ...item, ...updateItem } : item;
+                });
+              }
+              if (updateData.fee_lines) {
+                updatedOrder.fee_lines = [...(o.fee_lines || []), ...updateData.fee_lines];
+              }
+              return updatedOrder;
+            }
+            return o;
+          })
+        };
+      });
+
+      setIsEditingBilling(false);
+      setIsEditingShipping(false);
+      setEditingItemId(null);
+      setIsAddingDiscount(false);
+      setDiscountAmount('');
+
+      return { previousData };
+    },
     onSuccess: (data) => {
-      // Instantly inject the updated order into the React Query cache!
       queryClient.setQueriesData({ queryKey: ['orders'] }, (old: any) => {
         if (!old || !old.orders) return old;
         return {
@@ -67,49 +119,79 @@ export function OrderDetailsDrawer({ order, isOpen, onClose }: OrderDetailsDrawe
           orders: old.orders.map((o: any) => o.id === data.id ? { ...o, ...data, fee_lines: data.fee_lines } : o)
         };
       });
-      queryClient.invalidateQueries({ queryKey: ['orders'] });
-      setIsEditingBilling(false);
-      setIsEditingShipping(false);
     },
-    onError: (err) => {
+    onError: (err, updateData, context: any) => {
+      if (context?.previousData) {
+        context.previousData.forEach(([queryKey, data]: any) => {
+          queryClient.setQueryData(queryKey, data);
+        });
+      }
       alert("Failed to update order: " + err.message);
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['orders'] });
     }
   });
 
   const handleEditBilling = () => {
+    if (!order) return;
     setBillingForm({ ...order.billing });
     setIsEditingBilling(true);
   };
   
   const handleEditShipping = () => {
-    // Some older WooCommerce orders might not have a shipping object locally parsed yet, but the API should return it.
-    // However, our local Prisma DB always stores it as JSON string. The page that passes `order` parses it.
+    if (!order) return;
     setShippingForm({ ...order.shipping });
     setIsEditingShipping(true);
   };
 
-
-
-  if (!order) return null;
-
   return (
     <Sheet open={isOpen} onOpenChange={onClose}>
       <SheetContent side="right" className="w-full sm:w-[540px] md:w-[700px] lg:w-[900px] xl:w-[1100px] !max-w-none overflow-hidden flex flex-col p-0 bg-[#F0F0F1] dark:bg-background border-l border-border">
-        
-        {/* Classic Header */}
-        <div className="px-6 py-4 border-b bg-white dark:bg-card shrink-0 flex justify-between items-center z-10 shadow-sm pr-12">
-          <div className="flex items-center gap-4">
-            <h2 className="text-xl font-semibold text-foreground">Order #{order.number} details</h2>
-            <div className="flex items-center gap-1 text-sm text-muted-foreground">
-              <span>Payment via {order.payment_method_title || 'Unknown'}</span>
-              <span>•</span>
-              <span>{format(new Date(order.date_created), 'MMM d, yyyy @ h:mm a')}</span>
-            </div>
+        {order && (
+          <>
+            {/* Classic Header */}
+        {/* Classic Productive Header */}
+        <div className="px-6 py-3.5 border-b bg-white dark:bg-card shrink-0 flex flex-wrap justify-between items-center z-10 shadow-sm pr-12 gap-3">
+          <div className="flex items-center gap-3">
+            <h2 className="text-xl font-bold text-foreground tracking-tight">Order #{order.number}</h2>
+            <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold capitalize border
+              ${order.status === 'completed' ? 'bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/20' : ''}
+              ${order.status === 'processing' ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20' : ''}
+              ${order.status === 'cancelled' || order.status === 'failed' ? 'bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20' : ''}
+              ${order.status === 'pending' || order.status === 'on-hold' ? 'bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 border-yellow-500/20' : ''}
+              ${order.status === 'order-confirmed' ? 'bg-teal-500/10 text-teal-600 dark:text-teal-400 border-teal-500/20' : ''}
+              ${order.status === 'ready' ? 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20' : ''}
+              ${order.status === 'no-response' ? 'bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-500/20' : ''}
+              ${order.status === 'waiting' ? 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/20' : ''}
+              ${!['completed', 'processing', 'cancelled', 'failed', 'pending', 'on-hold', 'refunded', 'order-confirmed', 'ready', 'no-response', 'waiting'].includes(order.status) ? 'bg-gray-100 text-gray-600 dark:bg-muted dark:text-muted-foreground border-border' : ''}
+            `}>
+              {order.status}
+            </span>
+            <span className="text-xs text-muted-foreground hidden md:inline">
+              {format(new Date(order.date_created), 'MMM d, yyyy @ h:mm a')}
+            </span>
           </div>
           <div className="flex items-center gap-2">
-            {updateOrderMutation.isPending && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground mr-1" />}
+            <button
+              onClick={() => printOrderInvoice(order)}
+              className="h-8 px-2.5 text-xs font-medium border border-input rounded-md hover:bg-muted flex items-center gap-1.5 transition-colors cursor-pointer"
+              title="Print Invoice"
+            >
+              <Printer className="h-3.5 w-3.5 text-muted-foreground" />
+              <span>Invoice</span>
+            </button>
+            <button
+              onClick={() => printOrderLabel(order)}
+              className="h-8 px-2.5 text-xs font-medium border border-input rounded-md hover:bg-muted flex items-center gap-1.5 transition-colors cursor-pointer"
+              title="Print 58mm Label"
+            >
+              <Tag className="h-3.5 w-3.5 text-muted-foreground" />
+              <span>58mm Label</span>
+            </button>
+            {updateOrderMutation.isPending && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground ml-1" />}
             <select 
-              className="h-8 text-sm border rounded px-2 bg-background focus:ring-1 focus:ring-primary focus:outline-none capitalize"
+              className="h-8 text-sm border rounded px-2 bg-background focus:ring-1 focus:ring-primary focus:outline-none capitalize cursor-pointer font-medium"
               value={order.status}
               onChange={(e) => updateOrderMutation.mutate({ status: e.target.value })}
               disabled={updateOrderMutation.isPending}
@@ -231,8 +313,8 @@ export function OrderDetailsDrawer({ order, isOpen, onClose }: OrderDetailsDrawe
                               </td>
                             </tr>
                           )}
-                          {order.fee_lines?.map((fee: any) => (
-                            <tr key={fee.id}>
+                          {order.fee_lines?.map((fee: any, index: number) => (
+                            <tr key={fee.id || `fee-${index}`}>
                               <td className="py-1 text-muted-foreground">{fee.name}:</td>
                               <td className={`py-1 text-right font-medium ${parseFloat(fee.total) < 0 ? 'text-red-600' : ''}`}>
                                 {parseFloat(fee.total) < 0 ? '-' : ''}<span dangerouslySetInnerHTML={{ __html: order.currency_symbol }} />{Math.abs(parseFloat(fee.total))}
@@ -305,36 +387,51 @@ export function OrderDetailsDrawer({ order, isOpen, onClose }: OrderDetailsDrawe
                 <div className="bg-white dark:bg-card border shadow-sm p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                   <span className="text-sm font-medium text-foreground">Quick Status Update</span>
                   <div className="flex flex-wrap gap-2">
-                    {order.status !== 'processing' && (
-                      <button 
-                        onClick={() => updateOrderMutation.mutate({ status: 'processing' })}
-                        disabled={updateOrderMutation.isPending}
-                        className="px-3 py-1.5 text-xs font-medium bg-blue-50 text-blue-700 hover:bg-blue-100 dark:bg-blue-900/20 dark:text-blue-400 dark:hover:bg-blue-900/40 rounded border border-blue-200 dark:border-blue-800/50 transition-colors shadow-sm disabled:opacity-50 flex items-center gap-1.5"
-                      >
-                        {updateOrderMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
-                        Mark Processing
-                      </button>
-                    )}
-                    {order.status !== 'completed' && (
-                      <button 
-                        onClick={() => updateOrderMutation.mutate({ status: 'completed' })}
-                        disabled={updateOrderMutation.isPending}
-                        className="px-3 py-1.5 text-xs font-medium bg-green-50 text-green-700 hover:bg-green-100 dark:bg-green-900/20 dark:text-green-400 dark:hover:bg-green-900/40 rounded border border-green-200 dark:border-green-800/50 transition-colors shadow-sm disabled:opacity-50 flex items-center gap-1.5"
-                      >
-                        {updateOrderMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
-                        Mark Completed
-                      </button>
-                    )}
-                    {order.status !== 'cancelled' && (
-                      <button 
-                        onClick={() => updateOrderMutation.mutate({ status: 'cancelled' })}
-                        disabled={updateOrderMutation.isPending}
-                        className="px-3 py-1.5 text-xs font-medium bg-red-50 text-red-700 hover:bg-red-100 dark:bg-red-900/20 dark:text-red-400 dark:hover:bg-red-900/40 rounded border border-red-200 dark:border-red-800/50 transition-colors shadow-sm disabled:opacity-50 flex items-center gap-1.5"
-                      >
-                        {updateOrderMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <X className="h-3 w-3" />}
-                        Cancel Order
-                      </button>
-                    )}
+                    {statuses
+                      ?.filter((s: any) => 
+                        s.value !== 'any' && 
+                        s.value !== order.status && 
+                        !['pending', 'otp-pending', 'return', 'refunded', 'failed', 'checkout-draft', 'wcf-main-order'].includes(s.value)
+                      )
+                      .map((s: any) => {
+                        let colorClass = "bg-gray-50 text-gray-700 hover:bg-gray-100 dark:bg-muted dark:text-muted-foreground dark:hover:bg-muted/80 border-gray-200 dark:border-border";
+                        let icon = null;
+                        
+                        if (s.value === 'completed') {
+                          colorClass = "bg-green-50 text-green-700 hover:bg-green-100 dark:bg-green-900/20 dark:text-green-400 dark:hover:bg-green-900/40 border-green-200 dark:border-green-800/50";
+                          icon = <Check className="h-3 w-3" />;
+                        } else if (s.value === 'processing') {
+                          colorClass = "bg-blue-50 text-blue-700 hover:bg-blue-100 dark:bg-blue-900/20 dark:text-blue-400 dark:hover:bg-blue-900/40 border-blue-200 dark:border-blue-800/50";
+                        } else if (s.value === 'cancelled' || s.value === 'failed' || s.value === 'refunded') {
+                          colorClass = "bg-red-50 text-red-700 hover:bg-red-100 dark:bg-red-900/20 dark:text-red-400 dark:hover:bg-red-900/40 border-red-200 dark:border-red-800/50";
+                          if (s.value === 'cancelled') icon = <X className="h-3 w-3" />;
+                        } else if (s.value === 'pending' || s.value === 'on-hold') {
+                          colorClass = "bg-yellow-50 text-yellow-700 hover:bg-yellow-100 dark:bg-yellow-900/20 dark:text-yellow-400 dark:hover:bg-yellow-900/40 border-yellow-200 dark:border-yellow-800/50";
+                        } else if (s.value === 'order-confirmed') {
+                          colorClass = "bg-teal-50 text-teal-700 hover:bg-teal-100 dark:bg-teal-900/20 dark:text-teal-400 dark:hover:bg-teal-900/40 border-teal-200 dark:border-teal-800/50";
+                        } else if (s.value === 'ready') {
+                          colorClass = "bg-purple-50 text-purple-700 hover:bg-purple-100 dark:bg-purple-900/20 dark:text-purple-400 dark:hover:bg-purple-900/40 border-purple-200 dark:border-purple-800/50";
+                        } else if (s.value === 'no-response') {
+                          colorClass = "bg-orange-50 text-orange-700 hover:bg-orange-100 dark:bg-orange-900/20 dark:text-orange-400 dark:hover:bg-orange-900/40 border-orange-200 dark:border-orange-800/50";
+                        } else if (s.value === 'waiting') {
+                          colorClass = "bg-indigo-50 text-indigo-700 hover:bg-indigo-100 dark:bg-indigo-900/20 dark:text-indigo-400 dark:hover:bg-indigo-900/40 border-indigo-200 dark:border-indigo-800/50";
+                        }
+                        
+                        // Check if this specific button is loading
+                        const isThisPending = updateOrderMutation.isPending && updateOrderMutation.variables?.status === s.value;
+                        
+                        return (
+                          <button 
+                            key={s.value}
+                            onClick={() => updateOrderMutation.mutate({ status: s.value })}
+                            disabled={updateOrderMutation.isPending}
+                            className={`px-3 py-1.5 text-xs font-medium rounded border transition-colors shadow-sm disabled:opacity-50 flex items-center gap-1.5 ${colorClass}`}
+                          >
+                            {isThisPending ? <Loader2 className="h-3 w-3 animate-spin" /> : icon}
+                            {s.label}
+                          </button>
+                        );
+                    })}
                   </div>
                 </div>
                 
@@ -412,7 +509,32 @@ export function OrderDetailsDrawer({ order, isOpen, onClose }: OrderDetailsDrawe
                           <X className="h-3 w-3" /> Cancel
                         </button>
                         <button 
-                          onClick={() => updateOrderMutation.mutate({ billing: billingForm })} 
+                          onClick={() => {
+                            if (!billingForm.first_name?.trim() && !billingForm.last_name?.trim()) {
+                              alert("Name is required.");
+                              return;
+                            }
+                            if (!billingForm.phone?.trim()) {
+                              alert("Phone number is required.");
+                              return;
+                            }
+                            const payload: any = {
+                              first_name: billingForm.first_name || '',
+                              last_name: billingForm.last_name || '',
+                              company: billingForm.company || '',
+                              address_1: billingForm.address_1 || '',
+                              address_2: billingForm.address_2 || '',
+                              city: billingForm.city || '',
+                              state: billingForm.state || '',
+                              postcode: billingForm.postcode || '',
+                              country: billingForm.country || '',
+                              phone: billingForm.phone || ''
+                            };
+                            if (billingForm.email?.trim()) {
+                              payload.email = billingForm.email.trim();
+                            }
+                            updateOrderMutation.mutate({ billing: payload });
+                          }} 
                           className="px-3 py-1.5 bg-primary text-primary-foreground rounded text-xs font-medium hover:bg-primary/90 flex items-center gap-1 shadow-sm" 
                           disabled={updateOrderMutation.isPending}
                         >
@@ -434,16 +556,36 @@ export function OrderDetailsDrawer({ order, isOpen, onClose }: OrderDetailsDrawe
                       <p>{order.billing.city}, {order.billing.state} {order.billing.postcode}</p>
                       <p>{order.billing.country}</p>
                       
-                      <div className="mt-3 space-y-1 pt-3 border-t">
+                      <div className="mt-3 space-y-2 pt-3 border-t">
                         {order.billing.email && (
                           <p className="flex items-center gap-2 text-primary hover:underline cursor-pointer">
                             <Mail className="h-3.5 w-3.5" /> {order.billing.email}
                           </p>
                         )}
                         {order.billing.phone && (
-                          <p className="flex items-center gap-2">
-                            <Phone className="h-3.5 w-3.5 text-muted-foreground" /> {order.billing.phone}
-                          </p>
+                          <div className="space-y-2 pt-1">
+                            <p className="flex items-center gap-2 text-foreground font-semibold">
+                              <Phone className="h-3.5 w-3.5 text-muted-foreground" /> {order.billing.phone}
+                            </p>
+                            <div className="flex items-center gap-2 pt-1">
+                              <a
+                                href={`tel:${order.billing.phone}`}
+                                className="flex-1 py-1.5 px-3 text-xs border rounded-md hover:bg-muted text-foreground flex items-center justify-center gap-1.5 cursor-pointer transition-colors font-medium shadow-xs"
+                                title="Call Customer"
+                              >
+                                <Phone className="h-3.5 w-3.5 text-muted-foreground" /> Call
+                              </a>
+                              <a
+                                href={`https://wa.me/${order.billing.phone.replace(/[^\d]/g, '')}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex-1 py-1.5 px-3 text-xs border border-green-300 dark:border-green-800 bg-green-50 text-green-700 hover:bg-green-100 dark:bg-green-950/40 dark:text-green-400 rounded-md flex items-center justify-center gap-1.5 font-semibold cursor-pointer transition-colors shadow-xs"
+                                title="Open WhatsApp Chat"
+                              >
+                                <MessageSquare className="h-3.5 w-3.5" /> WhatsApp
+                              </a>
+                            </div>
+                          </div>
                         )}
                       </div>
                     </div>
@@ -492,7 +634,20 @@ export function OrderDetailsDrawer({ order, isOpen, onClose }: OrderDetailsDrawe
                           <X className="h-3 w-3" /> Cancel
                         </button>
                         <button 
-                          onClick={() => updateOrderMutation.mutate({ shipping: shippingForm })} 
+                          onClick={() => {
+                            const payload = {
+                              first_name: shippingForm?.first_name || '',
+                              last_name: shippingForm?.last_name || '',
+                              company: shippingForm?.company || '',
+                              address_1: shippingForm?.address_1 || '',
+                              address_2: shippingForm?.address_2 || '',
+                              city: shippingForm?.city || '',
+                              state: shippingForm?.state || '',
+                              postcode: shippingForm?.postcode || '',
+                              country: shippingForm?.country || ''
+                            };
+                            updateOrderMutation.mutate({ shipping: payload });
+                          }} 
                           className="px-3 py-1.5 bg-primary text-primary-foreground rounded text-xs font-medium hover:bg-primary/90 flex items-center gap-1 shadow-sm" 
                           disabled={updateOrderMutation.isPending}
                         >
@@ -590,6 +745,8 @@ export function OrderDetailsDrawer({ order, isOpen, onClose }: OrderDetailsDrawe
             </div>
           </div>
         </div>
+          </>
+        )}
       </SheetContent>
     </Sheet>
   );

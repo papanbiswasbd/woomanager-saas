@@ -3,7 +3,7 @@
 import { useSettingsStore } from '@/lib/store';
 import { useEffect, useState, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { CheckCircle2, XCircle, Loader2, Link as LinkIcon, Unlink, KeyRound } from 'lucide-react';
+import { CheckCircle2, XCircle, Loader2, Link as LinkIcon, Unlink, KeyRound, Printer, Save, Image as ImageIcon } from 'lucide-react';
 
 function SettingsContent() {
   const router = useRouter();
@@ -20,6 +20,13 @@ function SettingsContent() {
   const [connectionStatus, setConnectionStatus] = useState<{status: 'idle' | 'success' | 'error', message: string}>({status: 'idle', message: ''});
   
   const [isAuthenticating, setIsAuthenticating] = useState(false);
+
+  const [shopName, setShopName] = useState(settings.shopName || '');
+  const [shopLogoUrl, setShopLogoUrl] = useState(settings.shopLogoUrl || '');
+  const [shopAddress, setShopAddress] = useState(settings.shopAddress || '');
+  const [shopPhone, setShopPhone] = useState(settings.shopPhone || '');
+  const [invoiceFooterText, setInvoiceFooterText] = useState(settings.invoiceFooterText || '');
+  const [isBrandingSaved, setIsBrandingSaved] = useState(false);
 
   // Load from DB on mount
   useEffect(() => {
@@ -398,6 +405,118 @@ function SettingsContent() {
           </button>
         </div>
       )}
+
+      {/* Invoice & Label Branding Settings */}
+      <div className="bg-card border rounded-lg p-6 shadow-sm space-y-6">
+        <div className="flex items-center justify-between border-b pb-4">
+          <div>
+            <h2 className="text-lg font-medium flex items-center gap-2">
+              <Printer className="h-5 w-5 text-primary" />
+              Invoice & Label Branding
+            </h2>
+            <p className="text-sm text-muted-foreground mt-0.5">
+              Customize the shop details, logo, address, and footer notes printed on invoices and 58mm thermal labels.
+            </p>
+          </div>
+        </div>
+
+        {isBrandingSaved && (
+          <div className="p-3 bg-green-500/10 text-green-700 dark:text-green-400 rounded-md flex items-center gap-2 text-sm font-medium">
+            <CheckCircle2 className="h-4 w-4" />
+            Branding settings saved successfully!
+          </div>
+        )}
+
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Shop Name</label>
+              <input
+                type="text"
+                value={shopName}
+                onChange={(e) => setShopName(e.target.value)}
+                placeholder="My Store Name"
+                className="w-full h-10 px-3 rounded-md border bg-transparent text-sm outline-none focus:ring-1 focus:ring-ring"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Shop Phone Number</label>
+              <input
+                type="text"
+                value={shopPhone}
+                onChange={(e) => setShopPhone(e.target.value)}
+                placeholder="+1 (555) 000-0000"
+                className="w-full h-10 px-3 rounded-md border bg-transparent text-sm outline-none focus:ring-1 focus:ring-ring"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium flex items-center justify-between">
+              <span>Shop Logo URL</span>
+              {shopLogoUrl && <span className="text-xs text-muted-foreground">Preview Active</span>}
+            </label>
+            <div className="flex gap-3 items-center">
+              <input
+                type="url"
+                value={shopLogoUrl}
+                onChange={(e) => setShopLogoUrl(e.target.value)}
+                placeholder="https://example.com/uploads/logo.png"
+                className="flex-1 h-10 px-3 rounded-md border bg-transparent text-sm outline-none focus:ring-1 focus:ring-ring"
+              />
+              {shopLogoUrl ? (
+                <img src={shopLogoUrl} alt="Store Logo Preview" className="h-10 w-10 object-contain border rounded-md p-1 bg-white shrink-0 shadow-xs" onError={() => {}} />
+              ) : (
+                <div className="h-10 w-10 border rounded-md bg-muted/40 flex items-center justify-center shrink-0">
+                  <ImageIcon className="h-4 w-4 text-muted-foreground" />
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Shop Business Address</label>
+            <textarea
+              rows={3}
+              value={shopAddress}
+              onChange={(e) => setShopAddress(e.target.value)}
+              placeholder="123 Business Street, Suite 400&#10;City, State, Zip Code"
+              className="w-full p-3 rounded-md border bg-transparent text-sm outline-none focus:ring-1 focus:ring-ring"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Invoice Footer Notes / Terms</label>
+            <input
+              type="text"
+              value={invoiceFooterText}
+              onChange={(e) => setInvoiceFooterText(e.target.value)}
+              placeholder="Thank you for your business! Terms & Conditions apply."
+              className="w-full h-10 px-3 rounded-md border bg-transparent text-sm outline-none focus:ring-1 focus:ring-ring"
+            />
+          </div>
+
+          <div className="pt-2">
+            <button
+              onClick={() => {
+                settings.setSettings({
+                  shopName,
+                  shopLogoUrl,
+                  shopAddress,
+                  shopPhone,
+                  invoiceFooterText
+                });
+                setIsBrandingSaved(true);
+                setTimeout(() => setIsBrandingSaved(false), 3000);
+              }}
+              className="h-10 px-4 py-2 bg-primary text-primary-foreground hover:bg-primary/90 inline-flex items-center gap-2 justify-center rounded-md text-sm font-medium transition-colors shadow-sm cursor-pointer"
+            >
+              <Save className="h-4 w-4" />
+              Save Invoice Branding
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

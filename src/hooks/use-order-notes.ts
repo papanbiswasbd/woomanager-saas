@@ -55,7 +55,32 @@ export function useOrderNotes(orderId: number | undefined) {
 
       return response.json();
     },
-    onSuccess: () => {
+    onMutate: async (newNoteData) => {
+      await queryClient.cancelQueries({ queryKey: ['order-notes', orderId] });
+      const previousNotes = queryClient.getQueryData(['order-notes', orderId]);
+
+      queryClient.setQueryData(['order-notes', orderId], (old: any) => {
+        const optimisticNote = {
+          id: Date.now(), // temporary ID
+          author: 'you',
+          date_created: new Date().toISOString(),
+          date_created_gmt: new Date().toISOString(),
+          note: newNoteData.note,
+          customer_note: newNoteData.isCustomerNote || false,
+          system: false,
+        };
+        return [optimisticNote, ...(old || [])];
+      });
+
+      return { previousNotes };
+    },
+    onError: (err, newNoteData, context: any) => {
+      if (context?.previousNotes) {
+        queryClient.setQueryData(['order-notes', orderId], context.previousNotes);
+      }
+      alert("Failed to add note: " + err.message);
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['order-notes', orderId] });
     },
   });

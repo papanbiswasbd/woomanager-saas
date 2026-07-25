@@ -41,40 +41,42 @@ export async function POST(request: Request) {
     const hasMore = page < totalPages;
     const products = await response.json();
 
-    for (const product of products) {
-      const productData = {
-        name: product.name,
-        slug: product.slug,
-        permalink: product.permalink,
-        type: product.type,
-        status: product.status,
-        featured: product.featured,
-        catalog_visibility: product.catalog_visibility,
-        description: product.description,
-        short_description: product.short_description,
-        sku: product.sku,
-        price: product.price,
-        regular_price: product.regular_price,
-        sale_price: product.sale_price,
-        manage_stock: product.manage_stock,
-        stock_quantity: product.stock_quantity,
-        stock_status: product.stock_status,
-        categories: JSON.stringify(product.categories),
-        images: JSON.stringify(product.images),
-        attributes: JSON.stringify(product.attributes),
-        date_created: new Date(product.date_created),
-        date_modified: product.date_modified ? new Date(product.date_modified) : new Date(),
-      };
+    await Promise.all(
+      products.map((product: any) => {
+        const productData = {
+          name: product.name,
+          slug: product.slug,
+          permalink: product.permalink,
+          type: product.type,
+          status: product.status,
+          featured: product.featured,
+          catalog_visibility: product.catalog_visibility,
+          description: product.description,
+          short_description: product.short_description,
+          sku: product.sku,
+          price: product.price,
+          regular_price: product.regular_price,
+          sale_price: product.sale_price,
+          manage_stock: product.manage_stock,
+          stock_quantity: product.stock_quantity,
+          stock_status: product.stock_status,
+          categories: JSON.stringify(product.categories),
+          images: JSON.stringify(product.images),
+          attributes: JSON.stringify(product.attributes),
+          date_created: new Date(product.date_created),
+          date_modified: product.date_modified ? new Date(product.date_modified) : new Date(),
+        };
 
-      await db.product.upsert({
-        where: { id: product.id },
-        update: productData,
-        create: {
-          id: product.id,
-          ...productData
-        }
-      });
-    }
+        return db.product.upsert({
+          where: { id: product.id },
+          update: productData,
+          create: {
+            id: product.id,
+            ...productData
+          }
+        });
+      })
+    );
 
     return NextResponse.json({ success: true, count: products.length, hasMore, totalPages });
   } catch (error: any) {

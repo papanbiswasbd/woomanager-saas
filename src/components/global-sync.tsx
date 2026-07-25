@@ -14,15 +14,14 @@ export function GlobalSync() {
     // Aggressively prefetch the first page of orders in the background 
     // as soon as credentials are provided, even if the user is on the Settings page.
     queryClient.prefetchQuery({
-      queryKey: ['orders', 1, 50],
+      queryKey: ['orders', 1, 50, 'processing', '', '', ''],
       queryFn: async () => {
-        const response = await woo.get('orders', { page: 1, per_page: 50 });
-        return response.data;
+        const res = await fetch('/api/orders?page=1&per_page=50&status=processing');
+        if (!res.ok) throw new Error('Failed to prefetch orders');
+        return res.json();
       },
       staleTime: 1000 * 60 * 5,
     });
-    
-    // Future: Prefetch Products and Customers here
   }, [woo, queryClient]);
 
   return null; // This is a logic-only component

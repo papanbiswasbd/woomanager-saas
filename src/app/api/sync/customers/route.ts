@@ -43,31 +43,33 @@ export async function POST(request: Request) {
     const customers = await response.json();
 
     // Upsert customers into Prisma local database
-    for (const customer of customers) {
-      const customerData = {
-        email: customer.email || '',
-        first_name: customer.first_name || '',
-        last_name: customer.last_name || '',
-        role: customer.role || '',
-        username: customer.username || '',
-        billing: JSON.stringify(customer.billing || {}),
-        shipping: JSON.stringify(customer.shipping || {}),
-        is_paying_customer: customer.is_paying_customer || false,
-        orders_count: customer.orders_count || 0,
-        total_spent: customer.total_spent || '0',
-        date_created: customer.date_created ? new Date(customer.date_created) : new Date(),
-        date_modified: customer.date_modified ? new Date(customer.date_modified) : new Date(),
-      };
+    await Promise.all(
+      customers.map((customer: any) => {
+        const customerData = {
+          email: customer.email || '',
+          first_name: customer.first_name || '',
+          last_name: customer.last_name || '',
+          role: customer.role || '',
+          username: customer.username || '',
+          billing: JSON.stringify(customer.billing || {}),
+          shipping: JSON.stringify(customer.shipping || {}),
+          is_paying_customer: customer.is_paying_customer || false,
+          orders_count: customer.orders_count || 0,
+          total_spent: customer.total_spent || '0',
+          date_created: customer.date_created ? new Date(customer.date_created) : new Date(),
+          date_modified: customer.date_modified ? new Date(customer.date_modified) : new Date(),
+        };
 
-      await db.customer.upsert({
-        where: { id: customer.id },
-        update: customerData,
-        create: {
-          id: customer.id,
-          ...customerData
-        }
-      });
-    }
+        return db.customer.upsert({
+          where: { id: customer.id },
+          update: customerData,
+          create: {
+            id: customer.id,
+            ...customerData
+          }
+        });
+      })
+    );
 
     return NextResponse.json({ success: true, count: customers.length, hasMore, totalPages });
   } catch (error: any) {

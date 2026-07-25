@@ -9,7 +9,7 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
 }
 
 model Store {
@@ -48,6 +48,10 @@ model Order {
 
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
+
+  @@index([status])
+  @@index([date_created])
+  @@index([date_modified])
 }
 
 model Customer {
@@ -70,6 +74,9 @@ model Customer {
   
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
+
+  @@index([date_created])
+  @@index([date_modified])
 }
 
 model Product {
@@ -101,4 +108,8 @@ model Product {
   
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
+
+  @@index([status])
+  @@index([date_created])
+  @@index([date_modified])
 }

@@ -7,13 +7,7 @@ import { LayoutDashboard, ShoppingCart, Users, Package, Settings, HelpCircle, Tr
 const navItems = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
   { name: 'Orders', href: '/orders', icon: ShoppingCart },
-  { name: 'Customers', href: '/customers', icon: Users },
   { name: 'Products', href: '/products', icon: Package },
-  { name: 'Fulfillment', href: '/fulfillment', icon: Truck },
-  { name: 'Returns', href: '/returns', icon: RefreshCcw },
-  { name: 'Analytics', href: '/analytics', icon: BarChart3 },
-  { name: 'Automation', href: '/automation', icon: Workflow },
-  { name: 'Notifications', href: '/notifications', icon: Bell },
   { name: 'Team', href: '/team', icon: UserCircle },
   { name: 'Settings', href: '/settings', icon: Settings },
   { name: 'Help Center', href: '/help', icon: HelpCircle },
