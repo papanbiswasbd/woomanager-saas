@@ -47,6 +47,13 @@ export async function POST(request: Request) {
       });
     }
 
+    // Claim existing database records for this authorized user
+    await Promise.allSettled([
+      db.order.updateMany({ data: { userId: user_id } }),
+      db.product.updateMany({ data: { userId: user_id } }),
+      db.customer.updateMany({ data: { userId: user_id } }),
+    ]);
+
     return NextResponse.json({ success: true });
   } catch (error: any) {
     console.error("WooCommerce Auth Callback Error:", error);
