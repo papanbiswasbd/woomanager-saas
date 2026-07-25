@@ -55,6 +55,24 @@ export async function POST(request: Request) {
       });
     }
 
+    // Claim existing unassigned database data for this newly connected store/user
+    if (user?.id) {
+      await Promise.allSettled([
+        db.order.updateMany({
+          where: { userId: null },
+          data: { userId: user.id }
+        }),
+        db.product.updateMany({
+          where: { userId: null },
+          data: { userId: user.id }
+        }),
+        db.customer.updateMany({
+          where: { userId: null },
+          data: { userId: user.id }
+        }),
+      ]);
+    }
+
     return NextResponse.json({ success: true, store });
   } catch (error: any) {
     console.error("Update Store Settings Error:", error);

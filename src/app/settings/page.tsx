@@ -85,8 +85,17 @@ function SettingsContent() {
                 consumerSecret: data.consumerSecret
               });
               
+              // Trigger initial sync to pull store data immediately
+              const payload = JSON.stringify({ url: finalUrl, consumerKey: data.consumerKey, consumerSecret: data.consumerSecret, page: 1 });
+              const headers = { 'Content-Type': 'application/json' };
+              Promise.allSettled([
+                fetch('/api/sync/orders', { method: 'POST', headers, body: payload }),
+                fetch('/api/sync/products', { method: 'POST', headers, body: payload }),
+                fetch('/api/sync/customers', { method: 'POST', headers, body: payload }),
+              ]).catch(() => {});
+
               window.localStorage.removeItem('tempStoreUrl');
-              setConnectionStatus({ status: 'success', message: 'Successfully connected to WooCommerce!' });
+              setConnectionStatus({ status: 'success', message: 'Successfully connected to WooCommerce! Initial data sync started.' });
               router.replace('/settings');
             } else {
               setConnectionStatus({ status: 'error', message: 'Failed to retrieve keys from database callback.' });
