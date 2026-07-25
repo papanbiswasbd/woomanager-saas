@@ -438,7 +438,7 @@ function OrdersPageContent() {
         
         {isLoading ? (
           <div className="p-8 text-center text-muted-foreground animate-pulse">
-            Loading orders from WooCommerce...
+            Loading orders...
           </div>
         ) : error ? (
           <div className="p-8 text-center text-destructive">
