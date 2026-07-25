@@ -14,6 +14,5 @@ export function useProducts(page = 1, perPage = 50) {
     enabled: !!storeUrl, 
     staleTime: 1000 * 60 * 5, 
     placeholderData: keepPreviousData,
-    refetchInterval: 5000,
   });
 }

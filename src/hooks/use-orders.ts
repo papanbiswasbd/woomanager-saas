@@ -19,6 +19,5 @@ export function useOrders(page = 1, perPage = 50, status = 'any', search = '', f
     enabled: !!storeUrl, 
     staleTime: 1000 * 60 * 5, 
     placeholderData: keepPreviousData,
-    refetchInterval: 5000,
   });
 }

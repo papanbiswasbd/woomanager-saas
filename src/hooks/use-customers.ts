@@ -10,6 +10,6 @@ export function useCustomers({ page = 1, perPage = 20 }: { page?: number; perPag
       }
       return res.json();
     },
-    refetchInterval: 5000,
+    staleTime: 1000 * 60 * 5,
   });
 }
