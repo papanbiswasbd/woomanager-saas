@@ -435,11 +435,6 @@ function OrdersPageContent() {
       </div>
 
       <div className="bg-card border rounded-lg overflow-hidden shadow-sm relative">
-        {isFetching && (
-          <div className="absolute inset-0 bg-background/50 backdrop-blur-[1px] z-10 flex items-center justify-center">
-            <div className="animate-pulse font-medium text-primary bg-background/80 px-4 py-2 rounded-full shadow-sm">Loading...</div>
-          </div>
-        )}
         
         {isLoading ? (
           <div className="p-8 text-center text-muted-foreground animate-pulse">

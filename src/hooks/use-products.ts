@@ -8,11 +8,13 @@ export function useProducts(page = 1, perPage = 50) {
     queryKey: ['products', page, perPage],
     queryFn: async () => {
       const res = await fetch(`/api/products?page=${page}&per_page=${perPage}`);
-      if (!res.ok) throw new Error('Failed to fetch products from local database');
+      if (!res.ok) throw new Error('Failed to fetch products from database');
       return res.json();
     },
     enabled: !!storeUrl, 
-    staleTime: 1000 * 60 * 5, 
+    staleTime: Infinity, 
     placeholderData: keepPreviousData,
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
   });
 }
